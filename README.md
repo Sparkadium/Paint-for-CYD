@@ -7,3 +7,5 @@ Edit 2: 2D Animation added!
 Edit 3: Zoom function! Less jitter! Better save/load menus!
 
 Edit 4: More zoom! Up to 8x! Adjusted some animation features.
+
+Edit 5: Undo/redo buttons added
