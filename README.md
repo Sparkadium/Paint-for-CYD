@@ -2,4 +2,6 @@ I prompted Claude AI for the code. The canvas size is 200x200 because 240x240 is
 
 Edit: Mirror mode added!
 
-Edit: 2D Animation added!
+Edit 2: 2D Animation added!
+
+Edit 3: Zoom function! Less jitter! Better save/load menus!
