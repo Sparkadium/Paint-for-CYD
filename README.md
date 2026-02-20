@@ -9,3 +9,5 @@ Edit 3: Zoom function! Less jitter! Better save/load menus!
 Edit 4: More zoom! Up to 8x! Adjusted some animation features.
 
 Edit 5: Undo/redo buttons added
+
+Edit 6: ![lol](https://github.com/user-attachments/assets/7e653c1b-a3c1-436e-b11d-b821ebc65d8b)
