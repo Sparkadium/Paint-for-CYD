@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYD Paint Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0a0a12;
+    --panel: #14141e;
+    --border: #2a2a3a;
+    --accent: #00e5ff;
+    --accent2: #ff6090;
+    --text: #d0d0e0;
+    --dim: #606080;
+    --success: #40e080;
+    --warn: #ffe040;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    padding: 20px 0 10px;
+    text-align: center;
+    border-bottom: 2px solid var(--border);
+    background: linear-gradient(180deg, #10101a 0%, var(--bg) 100%);
+  }
+
+  header h1 {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 18px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,229,255,0.3);
+    letter-spacing: 2px;
+  }
+
+  header p {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 6px;
+  }
+
+  .main {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    max-width: 900px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .canvas-area {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #dropZone {
+    width: 400px;
+    height: 400px;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    image-rendering: pixelated;
+    background: repeating-conic-gradient(#18182a 0% 25%, #12121c 0% 50%) 0 0 / 20px 20px;
+  }
+
+  #dropZone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.05);
+    box-shadow: 0 0 30px rgba(0,229,255,0.1);
+  }
+
+  #dropZone.has-image {
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  .drop-hint {
+    text-align: center;
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.8;
+    pointer-events: none;
+  }
+
+  .drop-hint span {
+    display: block;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  #mainCanvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+  }
+
+  .controls {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .section-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 9px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 12px;
+  }
+
+  .info-grid .label { color: var(--dim); }
+  .info-grid .value { color: var(--text); font-weight: 700; }
+
+  .filmstrip {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 4px 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .frame-thumb {
+    width: 48px;
+    height: 48px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    image-rendering: pixelated;
+    transition: border-color 0.15s;
+    position: relative;
+  }
+
+  .frame-thumb:hover { border-color: var(--accent); }
+  .frame-thumb.active { border-color: var(--accent); box-shadow: 0 0 8px rgba(0,229,255,0.3); }
+
+  .frame-thumb canvas {
+    width: 100%;
+    height: 100%;
+    border-radius: 2px;
+    image-rendering: pixelated;
+  }
+
+  .frame-num {
+    position: absolute;
+    bottom: 1px;
+    right: 2px;
+    font-size: 8px;
+    color: var(--accent);
+    font-family: 'Press Start 2P', cursive;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,255,0.05);
+  }
+
+  button:active { transform: scale(0.96); }
+
+  button.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  button.primary:hover {
+    background: #33eeff;
+    border-color: #33eeff;
+    color: var(--bg);
+  }
+
+  button.danger {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .speed-control input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+
+  .speed-value {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  #fileInput { display: none; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--success);
+    color: var(--bg);
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: transform 0.3s;
+    z-index: 100;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .zoom-controls .label { color: var(--dim); }
+  .zoom-controls .value { color: var(--accent); font-weight: 700; min-width: 30px; }
+
+  @media (max-width: 700px) {
+    .main { flex-direction: column; align-items: center; }
+    #dropZone { width: 300px; height: 300px; }
+    .controls { min-width: auto; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CYD PAINT VIEWER</h1>
+  <p>Open .CYD project files &amp; BMP exports from CYD Paint</p>
+</header>
+
+<div class="main">
+  <div class="canvas-area">
+    <div id="dropZone">
+      <div class="drop-hint" id="dropHint">
+        <span>DROP FILE HERE</span>
+        or click to browse<br>
+        .CYD projects &bull; .BMP images
+      </div>
+      <canvas id="mainCanvas" width="200" height="200" style="display:none"></canvas>
+    </div>
+    <div class="filmstrip" id="filmstrip"></div>
+    <div class="zoom-controls">
+      <span class="label">Zoom:</span>
+      <button onclick="setZoom(1)">1x</button>
+      <button onclick="setZoom(2)">2x</button>
+      <button onclick="setZoom(4)">4x</button>
+      <button onclick="setZoom(8)">8x</button>
+      <span class="value" id="zoomLabel">2x</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="section-title">File Info</div>
+    <div class="info-grid">
+      <span class="label">File:</span><span class="value" id="infoFile">—</span>
+      <span class="label">Size:</span><span class="value" id="infoSize">—</span>
+      <span class="label">Canvas:</span><span class="value" id="infoDims">—</span>
+      <span class="label">Frames:</span><span class="value" id="infoFrames">—</span>
+      <span class="label">FPS:</span><span class="value" id="infoFPS">—</span>
+      <span class="label">Format:</span><span class="value" id="infoFormat">—</span>
+    </div>
+
+    <div class="section-title">Playback</div>
+    <div class="btn-row">
+      <button id="btnFirst" onclick="goFirst()" disabled>|&lt;</button>
+      <button id="btnPrev" onclick="goPrev()" disabled>&lt;</button>
+      <button id="btnPlay" onclick="togglePlay()" disabled class="primary">&#9654; Play</button>
+      <button id="btnNext" onclick="goNext()" disabled>&gt;</button>
+      <button id="btnLast" onclick="goLast()" disabled>&gt;|</button>
+    </div>
+    <div class="btn-row">
+      <button id="btnPP" onclick="togglePingPong()" disabled>Ping-Pong</button>
+    </div>
+    <div class="speed-control">
+      <span class="label">Speed:</span>
+      <input type="range" id="speedSlider" min="1" max="24" value="6" oninput="updateSpeed()">
+      <span class="speed-value" id="speedLabel">6 fps</span>
+    </div>
+    <div class="info-grid">
+      <span class="label">Frame:</span>
+      <span class="value" id="frameLabel">—</span>
+    </div>
+
+    <div class="section-title">Export</div>
+    <div class="btn-row">
+      <button id="btnExportPNG" onclick="exportPNG()" disabled>PNG</button>
+      <button id="btnExportAll" onclick="exportAllPNG()" disabled>All PNGs</button>
+      <button id="btnExportSheet" onclick="exportSpriteSheet()" disabled>Sprite Sheet</button>
+      <button id="btnExportGIF" onclick="exportGIF()" disabled>GIF (anim)</button>
+    </div>
+
+    <div class="section-title">Open</div>
+    <div class="btn-row">
+      <button onclick="document.getElementById('fileInput').click()">Browse...</button>
+    </div>
+    <input type="file" id="fileInput" accept=".cyd,.bmp,.CYD,.BMP" onchange="handleFile(this.files[0])">
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+let frames = [];        // Array of ImageData(200x200)
+let frameDelays = [];   // Per-frame delay in ms (0 = use global)
+let canvasW = 200, canvasH = 200;
+let globalFPS = 6;
+let curFrame = 0;
+let playing = false;
+let pingPong = false;
+let playDir = 1;
+let playTimer = null;
+let zoomLevel = 2;
+
+const mainCanvas = document.getElementById('mainCanvas');
+const ctx = mainCanvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ── Drop Zone ──
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+
+// ── File Handling ──
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = () => {
+    const buf = new Uint8Array(reader.result);
+    if (ext === 'cyd') {
+      loadCYD(buf, file.name, file.size);
+    } else if (ext === 'bmp') {
+      loadBMP(buf, file.name, file.size);
+    } else {
+      showToast('Unsupported file type');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── CYD Format Decoder ──
+// Header: "CYD1"(4) + width:u16 + height:u16 + frameCount:u8 + fps:u8
+//         + frameDelay[8]:u16 (16 bytes) + frameSizes[8]:u32 (32 bytes)
+// Then concatenated RLE blobs
+function loadCYD(buf, name, fileSize) {
+  const dv = new DataView(buf.buffer);
+
+  // Check magic
+  const magic = String.fromCharCode(buf[0], buf[1], buf[2], buf[3]);
+  if (magic !== 'CYD1') { showToast('Invalid CYD file'); return; }
+
+  canvasW = dv.getUint16(4, true);
+  canvasH = dv.getUint16(6, true);
+  const frameCount = buf[8];
+  globalFPS = buf[9];
+
+  // Per-frame delays (8 x uint16)
+  frameDelays = [];
+  for (let i = 0; i < 8; i++) {
+    frameDelays.push(dv.getUint16(10 + i * 2, true));
+  }
+
+  // Per-frame RLE sizes (8 x uint32)
+  const frameSizes = [];
+  for (let i = 0; i < 8; i++) {
+    frameSizes.push(dv.getUint32(26 + i * 4, true));
+  }
+
+  // Decode frames
+  frames = [];
+  let offset = 58; // 4+2+2+1+1+16+32
+  for (let fi = 0; fi < frameCount; fi++) {
+    const rleSize = frameSizes[fi];
+    if (rleSize === 0 || offset + rleSize > buf.length) break;
+    const rleData = buf.subarray(offset, offset + rleSize);
+    offset += rleSize;
+
+    const imgData = new ImageData(canvasW, canvasH);
+    decodeRLE(rleData, imgData.data, canvasW, canvasH);
+    frames.push(imgData);
+  }
+
+  if (frames.length === 0) { showToast('No frames in CYD file'); return; }
+
+  // Update UI
+  document.getElementById('infoFile').textContent = name;
+  document.getElementById('infoSize').textContent = formatBytes(fileSize);
+  document.getElementById('infoDims').textContent = `${canvasW}×${canvasH}`;
+  document.getElementById('infoFrames').textContent = frames.length;
+  document.getElementById('infoFPS').textContent = globalFPS;
+  document.getElementById('infoFormat').textContent = 'CYD (native)';
+  document.getElementById('speedSlider').value = globalFPS;
+  document.getElementById('speedLabel').textContent = globalFPS + ' fps';
+
+  setupViewer();
+  showToast(`Loaded ${frames.length} frame${frames.length > 1 ? 's' : ''}`);
+}
+
+// ── RLE Decoder ──
+// Format: [count:u8][pixLo:u8][pixHi:u8], count=1..255
+function decodeRLE(rleData, rgba, w, h) {
+  const total = w * h;
+  let pixOut = 0;
+  let i = 0;
+  while (i + 2 < rleData.length && pixOut < total) {
+    const count = rleData[i];
+    const lo = rleData[i + 1];
+    const hi = rleData[i + 2];
+    i += 3;
+    const rgb565 = lo | (hi << 8);
+    // Convert RGB565 to RGBA
+    const r = ((rgb565 >> 11) & 0x1F) << 3;
+    const g = ((rgb565 >> 5) & 0x3F) << 2;
+    const b = (rgb565 & 0x1F) << 3;
+    const end = Math.min(pixOut + count, total);
+    while (pixOut < end) {
+      const idx = pixOut * 4;
+      rgba[idx] = r;
+      rgba[idx + 1] = g;
+      rgba[idx + 2] = b;
+      rgba[idx + 3] = 255;
+      pixOut++;
+    }
+  }
+  // Fill remaining with white
+  while (pixOut < total) {
+    const idx = pixOut * 4;
+    rgba[idx] = 255;
+    rgba[idx + 1] = 255;
+    rgba[idx + 2] = 255;
+    rgba[idx + 3] = 255;
+    pixOut++;
+  }
+}
+
+// ── BMP Decoder ──
+function loadBMP(buf, name, fileSize) {
+  if (buf[0] !== 0x42 || buf[1] !== 0x4D) { showToast('Invalid BMP'); return; }
+  const dv = new DataView(buf.buffer);
+  const dataOffset = dv.getUint32(10, true);
+  const w = dv.getInt32(18, true);
+  const h = dv.getInt32(22, true);
+  const bpp = dv.getUint16(28, true);
+
+  if (bpp !== 24) { showToast('Only 24-bit BMP supported'); return; }
+
+  canvasW = Math.abs(w);
+  canvasH = Math.abs(h);
+
+  const imgData = new ImageData(canvasW, canvasH);
+  const rowStride = Math.ceil(canvasW * 3 / 4) * 4;
+
+  // BMP is stored bottom-up
+  for (let row = 0; row < canvasH; row++) {
+    const bmpRow = canvasH - 1 - row;
+    const rowOffset = dataOffset + bmpRow * rowStride;
+    for (let col = 0; col < canvasW; col++) {
+      const srcIdx = rowOffset + col * 3;
+      const dstIdx = (row * canvasW + col) * 4;
+      imgData.data[dstIdx] = buf[srcIdx + 2];     // R
+      imgData.data[dstIdx + 1] = buf[srcIdx + 1]; // G
+      imgData.data[dstIdx + 2] = buf[srcIdx];     // B
+      imgData.data[dstIdx + 3] = 255;
+    }
+  }
+
+  frames = [imgData];
+  frameDelays = [0];
+  globalFPS = 6;
+
+  document.getElementById('infoFile').textContent = name;
+  document.getElementById('infoSize').textContent = formatBytes(fileSize);
+  document.getElementById('infoDims').textContent = `${canvasW}×${canvasH}`;
+  document.getElementById('infoFrames').textContent = '1';
+  document.getElementById('infoFPS').textContent = '—';
+  document.getElementById('infoFormat').textContent = 'BMP (24-bit)';
+
+  setupViewer();
+  showToast('BMP loaded');
+}
+
+// ── Viewer Setup ──
+function setupViewer() {
+  stopPlay();
+  curFrame = 0;
+  playDir = 1;
+
+  mainCanvas.width = canvasW;
+  mainCanvas.height = canvasH;
+  mainCanvas.style.display = 'block';
+  document.getElementById('dropHint').style.display = 'none';
+  dropZone.classList.add('has-image');
+
+  // Set zoom
+  setZoom(zoomLevel);
+
+  // Build filmstrip
+  buildFilmstrip();
+
+  // Show first frame
+  showFrame(0);
+
+  // Enable buttons
+  const multi = frames.length > 1;
+  document.getElementById('btnFirst').disabled = !multi;
+  document.getElementById('btnPrev').disabled = !multi;
+  document.getElementById('btnPlay').disabled = !multi;
+  document.getElementById('btnNext').disabled = !multi;
+  document.getElementById('btnLast').disabled = !multi;
+  document.getElementById('btnPP').disabled = !multi;
+  document.getElementById('btnExportPNG').disabled = false;
+  document.getElementById('btnExportAll').disabled = !multi;
+  document.getElementById('btnExportSheet').disabled = !multi;
+  document.getElementById('btnExportGIF').disabled = !multi;
+}
+
+function buildFilmstrip() {
+  const strip = document.getElementById('filmstrip');
+  strip.innerHTML = '';
+  frames.forEach((imgData, i) => {
+    const div = document.createElement('div');
+    div.className = 'frame-thumb' + (i === curFrame ? ' active' : '');
+    div.onclick = () => { stopPlay(); showFrame(i); };
+
+    const c = document.createElement('canvas');
+    c.width = canvasW;
+    c.height = canvasH;
+    c.getContext('2d').putImageData(imgData, 0, 0);
+    div.appendChild(c);
+
+    const num = document.createElement('div');
+    num.className = 'frame-num';
+    num.textContent = i + 1;
+    div.appendChild(num);
+
+    strip.appendChild(div);
+  });
+}
+
+function showFrame(idx) {
+  if (idx < 0 || idx >= frames.length) return;
+  curFrame = idx;
+  ctx.putImageData(frames[idx], 0, 0);
+  document.getElementById('frameLabel').textContent = `${idx + 1} / ${frames.length}`;
+
+  // Update filmstrip highlights
+  document.querySelectorAll('.frame-thumb').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+  });
+
+  // Scroll filmstrip to show current
+  const strip = document.getElementById('filmstrip');
+  const thumbs = strip.children;
+  if (thumbs[idx]) {
+    thumbs[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+}
+
+// ── Playback ──
+function togglePlay() {
+  if (playing) stopPlay();
+  else startPlay();
+}
+
+function startPlay() {
+  if (frames.length < 2) return;
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ Stop';
+  document.getElementById('btnPlay').classList.remove('primary');
+  document.getElementById('btnPlay').classList.add('danger');
+  playTick();
+}
+
+function stopPlay() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnPlay').classList.add('primary');
+  document.getElementById('btnPlay').classList.remove('danger');
+}
+
+function playTick() {
+  if (!playing) return;
+  let next;
+  if (pingPong) {
+    next = curFrame + playDir;
+    if (next >= frames.length) { playDir = -1; next = curFrame - 1; }
+    if (next < 0) { playDir = 1; next = curFrame + 1; }
+    if (next < 0 || next >= frames.length) next = 0;
+  } else {
+    next = (curFrame + 1) % frames.length;
+  }
+  showFrame(next);
+
+  const delay = (frameDelays[curFrame] > 0) ? frameDelays[curFrame] : (1000 / globalFPS);
+  playTimer = setTimeout(playTick, delay);
+}
+
+function goFirst() { stopPlay(); showFrame(0); }
+function goLast() { stopPlay(); showFrame(frames.length - 1); }
+function goPrev() { stopPlay(); showFrame((curFrame - 1 + frames.length) % frames.length); }
+function goNext() { stopPlay(); showFrame((curFrame + 1) % frames.length); }
+
+function togglePingPong() {
+  pingPong = !pingPong;
+  playDir = 1;
+  const btn = document.getElementById('btnPP');
+  btn.style.borderColor = pingPong ? 'var(--accent)' : 'var(--border)';
+  btn.style.color = pingPong ? 'var(--accent)' : 'var(--text)';
+}
+
+function updateSpeed() {
+  globalFPS = parseInt(document.getElementById('speedSlider').value);
+  document.getElementById('speedLabel').textContent = globalFPS + ' fps';
+}
+
+// ── Zoom ──
+function setZoom(level) {
+  zoomLevel = level;
+  const size = Math.min(canvasW, canvasH) * level;
+  const maxSize = 400;
+  const displaySize = Math.min(size, maxSize);
+  dropZone.style.width = displaySize + 'px';
+  dropZone.style.height = displaySize + 'px';
+  document.getElementById('zoomLabel').textContent = level + 'x';
+}
+
+// ── Export ──
+function exportPNG() {
+  if (frames.length === 0) return;
+  const c = document.createElement('canvas');
+  c.width = canvasW; c.height = canvasH;
+  c.getContext('2d').putImageData(frames[curFrame], 0, 0);
+  const a = document.createElement('a');
+  a.download = `frame_${curFrame + 1}.png`;
+  a.href = c.toDataURL('image/png');
+  a.click();
+  showToast('PNG exported');
+}
+
+function exportAllPNG() {
+  frames.forEach((imgData, i) => {
+    const c = document.createElement('canvas');
+    c.width = canvasW; c.height = canvasH;
+    c.getContext('2d').putImageData(imgData, 0, 0);
+    const a = document.createElement('a');
+    a.download = `frame_${String(i + 1).padStart(2, '0')}.png`;
+    a.href = c.toDataURL('image/png');
+    setTimeout(() => a.click(), i * 100);
+  });
+  showToast(`Exporting ${frames.length} PNGs...`);
+}
+
+function exportSpriteSheet() {
+  if (frames.length < 2) return;
+  const cols = Math.ceil(Math.sqrt(frames.length));
+  const rows = Math.ceil(frames.length / cols);
+  const c = document.createElement('canvas');
+  c.width = canvasW * cols;
+  c.height = canvasH * rows;
+  const sctx = c.getContext('2d');
+  sctx.fillStyle = '#ffffff';
+  sctx.fillRect(0, 0, c.width, c.height);
+  frames.forEach((imgData, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    sctx.putImageData(imgData, col * canvasW, row * canvasH);
+  });
+  const a = document.createElement('a');
+  a.download = 'spritesheet.png';
+  a.href = c.toDataURL('image/png');
+  a.click();
+  showToast(`Sprite sheet ${cols}×${rows} exported`);
+}
+
+function exportGIF() {
+  // Simple uncompressed GIF using minimal encoder
+  showToast('GIF export: use sprite sheet + ezgif.com for now');
+}
+
+// ── Helpers ──
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if (frames.length === 0) return;
+  switch (e.key) {
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'ArrowLeft': goPrev(); break;
+    case 'ArrowRight': goNext(); break;
+    case 'Home': goFirst(); break;
+    case 'End': goLast(); break;
+    case 'p': togglePingPong(); break;
+  }
+});
+</script>
+</body>
+</html>
